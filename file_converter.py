@@ -179,7 +179,7 @@ class FileConverterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("File Converter")
-        self.root.geometry("600x320")
+        self.root.geometry("600x250")
         self.root.resizable(True, True)
 
         self.converter = FileConverter()
@@ -201,7 +201,7 @@ class FileConverterGUI:
         # Title
         title_label = ttk.Label(
             main_frame,
-            text="File Converter to PDF",
+            text="File Converter",
             font=('Helvetica', 16, 'bold')
         )
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
@@ -238,15 +238,6 @@ class FileConverterGUI:
         # Status label
         self.status_label = ttk.Label(main_frame, text="Ready", foreground="gray")
         self.status_label.grid(row=4, column=0, columnspan=3, pady=5)
-
-        # Supported formats info
-        info_text = (
-            "Supported formats: Word (.docx, .doc), Excel (.xlsx, .xls), "
-            "PowerPoint (.pptx, .ppt), Images (.png, .jpg, .jpeg, .gif, .bmp, .tiff), "
-            "HTML (.html, .htm)\n\nPDF will be saved in the same directory as the input file."
-        )
-        info_label = ttk.Label(main_frame, text=info_text, foreground="blue", wraplength=550)
-        info_label.grid(row=5, column=0, columnspan=3, pady=20)
 
     def browse_input_file(self):
         """Browse for input file"""
