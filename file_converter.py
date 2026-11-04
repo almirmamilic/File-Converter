@@ -178,7 +178,7 @@ class FileConverterGUI:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("File Converter to PDF")
+        self.root.title("File Converter")
         self.root.geometry("600x400")
         self.root.resizable(True, True)
 
