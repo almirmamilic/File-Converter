@@ -179,7 +179,7 @@ class FileConverterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("File Converter")
-        self.root.geometry("420x200")
+        self.root.geometry("420x240")
         self.root.resizable(False, False)
 
         # Configure modern style
@@ -196,7 +196,7 @@ class FileConverterGUI:
         self.root.configure(bg=self.bg_color)
 
         self.converter = FileConverter()
-        self.input_file = None
+        self.input_files = []
 
         self.create_widgets()
 
@@ -220,37 +220,64 @@ class FileConverterGUI:
         input_frame = tk.Frame(main_frame, bg=self.bg_color)
         input_frame.pack(fill=tk.X, pady=(0, 12))
 
-        self.input_entry = tk.Entry(
-            input_frame,
-            font=('Segoe UI', 10),
+        # File listbox with scrollbar
+        listbox_frame = tk.Frame(input_frame, bg=self.bg_color)
+        listbox_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+
+        scrollbar = tk.Scrollbar(listbox_frame, bg=self.bg_color)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.file_listbox = tk.Listbox(
+            listbox_frame,
+            font=('Segoe UI', 9),
             relief=tk.FLAT,
             bd=1,
             highlightthickness=1,
             highlightbackground=self.accent_color,
-            highlightcolor=self.accent_color
+            highlightcolor=self.accent_color,
+            yscrollcommand=scrollbar.set,
+            height=3
         )
-        self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
-        self.input_entry.insert(0, "Select a file...")
-        self.input_entry.config(fg='gray')
+        self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.file_listbox.yview)
 
-        self.input_entry.bind('<FocusIn>', self._on_entry_click)
-        self.input_entry.bind('<FocusOut>', self._on_entry_leave)
+        self.file_listbox.insert(0, "No files selected")
+        self.file_listbox.config(fg='gray')
+
+        button_frame = tk.Frame(input_frame, bg=self.bg_color)
+        button_frame.pack(side=tk.RIGHT)
 
         browse_btn = tk.Button(
-            input_frame,
-            text="Browse",
+            button_frame,
+            text="Add Files",
             font=('Segoe UI', 9, 'bold'),
             bg=self.button_bg,
             fg=self.button_fg,
             relief=tk.FLAT,
             cursor='hand2',
             command=self.browse_input_file,
-            padx=15,
+            padx=12,
             pady=6,
             activebackground='#005a9e',
             activeforeground='white'
         )
-        browse_btn.pack(side=tk.RIGHT)
+        browse_btn.pack(pady=(0, 5))
+
+        clear_btn = tk.Button(
+            button_frame,
+            text="Clear",
+            font=('Segoe UI', 9, 'bold'),
+            bg='#666666',
+            fg='white',
+            relief=tk.FLAT,
+            cursor='hand2',
+            command=self.clear_files,
+            padx=12,
+            pady=6,
+            activebackground='#555555',
+            activeforeground='white'
+        )
+        clear_btn.pack()
 
         # Convert button
         convert_btn = tk.Button(
@@ -279,7 +306,7 @@ class FileConverterGUI:
         # Status label
         self.status_label = tk.Label(
             main_frame,
-            text="Ready",
+            text="Ready - 0 files selected",
             font=('Segoe UI', 8),
             bg=self.bg_color,
             fg='gray'
@@ -295,20 +322,8 @@ class FileConverterGUI:
             thickness=8
         )
 
-    def _on_entry_click(self, event):
-        """Handle entry focus in"""
-        if self.input_entry.get() == "Select a file...":
-            self.input_entry.delete(0, tk.END)
-            self.input_entry.config(fg=self.text_color)
-
-    def _on_entry_leave(self, event):
-        """Handle entry focus out"""
-        if not self.input_entry.get():
-            self.input_entry.insert(0, "Select a file...")
-            self.input_entry.config(fg='gray')
-
     def browse_input_file(self):
-        """Browse for input file"""
+        """Browse for input files (multiple selection)"""
         filetypes = [
             ('All supported files', '*.docx;*.doc;*.xlsx;*.xls;*.pptx;*.ppt;*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tiff;*.html;*.htm'),
             ('Word documents', '*.docx;*.doc'),
@@ -319,21 +334,43 @@ class FileConverterGUI:
             ('All files', '*.*')
         ]
 
-        filename = filedialog.askopenfilename(
-            title='Select file to convert',
+        filenames = filedialog.askopenfilenames(
+            title='Select files to convert',
             filetypes=filetypes
         )
 
-        if filename:
-            self.input_file = filename
-            self.input_entry.delete(0, tk.END)
-            self.input_entry.insert(0, filename)
-            self.input_entry.config(fg=self.text_color)
+        if filenames:
+            # Add new files to the list
+            for filename in filenames:
+                if filename not in self.input_files:
+                    self.input_files.append(filename)
+
+            self._update_file_list()
+
+    def clear_files(self):
+        """Clear all selected files"""
+        self.input_files = []
+        self._update_file_list()
+
+    def _update_file_list(self):
+        """Update the file listbox display"""
+        self.file_listbox.delete(0, tk.END)
+
+        if not self.input_files:
+            self.file_listbox.insert(0, "No files selected")
+            self.file_listbox.config(fg='gray')
+            self.status_label.config(text="Ready - 0 files selected")
+        else:
+            self.file_listbox.config(fg=self.text_color)
+            for filepath in self.input_files:
+                filename = Path(filepath).name
+                self.file_listbox.insert(tk.END, filename)
+            self.status_label.config(text=f"Ready - {len(self.input_files)} file(s) selected")
 
     def convert_file(self):
-        """Convert the selected file"""
-        if not self.input_file:
-            messagebox.showerror("Error", "Please select a file")
+        """Convert the selected files"""
+        if not self.input_files:
+            messagebox.showerror("Error", "Please select at least one file")
             return
 
         # Show progress bar and disable button during conversion
@@ -348,22 +385,38 @@ class FileConverterGUI:
 
     def _convert_thread(self):
         """Run conversion in a separate thread"""
+        success_count = 0
+        error_count = 0
+        errors = []
+
         try:
-            # Auto-generate output path in same directory as input file
-            result = self.converter.convert(self.input_file)
+            for i, filepath in enumerate(self.input_files):
+                try:
+                    # Auto-generate output path in same directory as input file
+                    result = self.converter.convert(filepath)
+                    success_count += 1
+                except Exception as e:
+                    error_count += 1
+                    errors.append(f"{Path(filepath).name}: {str(e)}")
 
             # Update GUI from main thread
-            self.root.after(0, self._conversion_success, result)
+            self.root.after(0, self._conversion_success, success_count, error_count, errors)
         except Exception as e:
             self.root.after(0, self._conversion_error, str(e))
 
-    def _conversion_success(self, result):
+    def _conversion_success(self, success_count, error_count, errors):
         """Handle successful conversion"""
         self.progress.stop()
         self.progress.pack_forget()
         self.root.config(cursor='')
-        self.status_label.config(text="Conversion successful!", foreground="green")
-        messagebox.showinfo("Success", f"File converted successfully!\n\nOutput: {result}")
+
+        if error_count == 0:
+            self.status_label.config(text=f"Success! {success_count} file(s) converted", foreground="green")
+            messagebox.showinfo("Success", f"Successfully converted {success_count} file(s) to PDF!")
+        else:
+            self.status_label.config(text=f"Partial success: {success_count} OK, {error_count} failed", foreground="orange")
+            error_message = f"Converted {success_count} file(s) successfully.\n\nFailed files:\n" + "\n".join(errors)
+            messagebox.showwarning("Partial Success", error_message)
 
     def _conversion_error(self, error_message):
         """Handle conversion error"""
