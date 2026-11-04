@@ -179,12 +179,11 @@ class FileConverterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("File Converter")
-        self.root.geometry("600x400")
+        self.root.geometry("600x320")
         self.root.resizable(True, True)
 
         self.converter = FileConverter()
         self.input_file = None
-        self.output_file = None
 
         self.create_widgets()
 
@@ -220,36 +219,13 @@ class FileConverterGUI:
         )
         browse_input_btn.grid(row=1, column=2, padx=5, pady=5)
 
-        # Output file section
-        ttk.Label(main_frame, text="Output File:").grid(row=2, column=0, sticky=tk.W, pady=5)
-
-        self.output_entry = ttk.Entry(main_frame, width=50)
-        self.output_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
-
-        browse_output_btn = ttk.Button(
-            main_frame,
-            text="Browse...",
-            command=self.browse_output_file
-        )
-        browse_output_btn.grid(row=2, column=2, padx=5, pady=5)
-
-        # Auto-generate output checkbox
-        self.auto_output_var = tk.BooleanVar(value=True)
-        auto_output_check = ttk.Checkbutton(
-            main_frame,
-            text="Auto-generate output filename",
-            variable=self.auto_output_var,
-            command=self.toggle_output_entry
-        )
-        auto_output_check.grid(row=3, column=0, columnspan=3, sticky=tk.W, pady=5)
-
         # Convert button
         convert_btn = ttk.Button(
             main_frame,
             text="Convert to PDF",
             command=self.convert_file
         )
-        convert_btn.grid(row=4, column=0, columnspan=3, pady=20)
+        convert_btn.grid(row=2, column=0, columnspan=3, pady=20)
 
         # Progress bar
         self.progress = ttk.Progressbar(
@@ -257,30 +233,20 @@ class FileConverterGUI:
             mode='indeterminate',
             length=400
         )
-        self.progress.grid(row=5, column=0, columnspan=3, pady=10)
+        self.progress.grid(row=3, column=0, columnspan=3, pady=10)
 
         # Status label
         self.status_label = ttk.Label(main_frame, text="Ready", foreground="gray")
-        self.status_label.grid(row=6, column=0, columnspan=3, pady=5)
+        self.status_label.grid(row=4, column=0, columnspan=3, pady=5)
 
         # Supported formats info
         info_text = (
             "Supported formats: Word (.docx, .doc), Excel (.xlsx, .xls), "
             "PowerPoint (.pptx, .ppt), Images (.png, .jpg, .jpeg, .gif, .bmp, .tiff), "
-            "HTML (.html, .htm)"
+            "HTML (.html, .htm)\n\nPDF will be saved in the same directory as the input file."
         )
         info_label = ttk.Label(main_frame, text=info_text, foreground="blue", wraplength=550)
-        info_label.grid(row=7, column=0, columnspan=3, pady=20)
-
-        # Initially disable output entry if auto-generate is checked
-        self.toggle_output_entry()
-
-    def toggle_output_entry(self):
-        """Enable/disable output entry based on checkbox"""
-        if self.auto_output_var.get():
-            self.output_entry.config(state='disabled')
-        else:
-            self.output_entry.config(state='normal')
+        info_label.grid(row=5, column=0, columnspan=3, pady=20)
 
     def browse_input_file(self):
         """Browse for input file"""
@@ -304,37 +270,10 @@ class FileConverterGUI:
             self.input_entry.delete(0, tk.END)
             self.input_entry.insert(0, filename)
 
-            # Auto-generate output filename
-            if self.auto_output_var.get():
-                input_path = Path(filename)
-                auto_output = str(input_path.with_suffix('.pdf'))
-                self.output_entry.delete(0, tk.END)
-                self.output_entry.insert(0, auto_output)
-                self.output_file = auto_output
-
-    def browse_output_file(self):
-        """Browse for output file"""
-        filename = filedialog.asksaveasfilename(
-            title='Save PDF as',
-            defaultextension='.pdf',
-            filetypes=[('PDF files', '*.pdf')]
-        )
-
-        if filename:
-            self.output_file = filename
-            self.output_entry.delete(0, tk.END)
-            self.output_entry.insert(0, filename)
-            self.auto_output_var.set(False)
-            self.toggle_output_entry()
-
     def convert_file(self):
         """Convert the selected file"""
         if not self.input_file:
-            messagebox.showerror("Error", "Please select an input file")
-            return
-
-        if not self.auto_output_var.get() and not self.output_file:
-            messagebox.showerror("Error", "Please select an output file")
+            messagebox.showerror("Error", "Please select a file")
             return
 
         # Disable button during conversion
@@ -349,8 +288,8 @@ class FileConverterGUI:
     def _convert_thread(self):
         """Run conversion in a separate thread"""
         try:
-            output = self.output_file if not self.auto_output_var.get() else None
-            result = self.converter.convert(self.input_file, output)
+            # Auto-generate output path in same directory as input file
+            result = self.converter.convert(self.input_file)
 
             # Update GUI from main thread
             self.root.after(0, self._conversion_success, result)
