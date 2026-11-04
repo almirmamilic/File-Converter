@@ -51,10 +51,10 @@ The repository includes `app_icon.ico`. The GUI applies this icon to its window 
 
 ```powershell
 python -m pip install pyinstaller
-pyinstaller --noconfirm --onefile --windowed --name FileConverter --icon app_icon.ico --add-data "app_icon.ico;." file_converter.py
+pyinstaller --noconfirm --onedir --windowed --name FileConverter --icon app_icon.ico --add-data "app_icon.ico;." file_converter.py
 ```
 
-The executable is created at `dist\FileConverter.exe`. Create a desktop shortcut to that executable, or pin it to the taskbar; Windows will use the embedded application icon. Keep `app_icon.ico` alongside `file_converter.py` when running from source.
+The executable is created at `dist\FileConverter\FileConverter.exe`; keep the entire `dist\FileConverter` folder together when moving or distributing the app. Create a desktop shortcut to the executable, or pin it to the taskbar; Windows will use the embedded application icon. Keep `app_icon.ico` alongside `file_converter.py` when running from source.
 
 ## Use as a library
 
