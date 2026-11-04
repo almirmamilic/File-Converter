@@ -40,11 +40,17 @@ class FileConverter:
 
         if not input_file.exists():
             raise FileNotFoundError(f"Input file not found: {input_path}")
+        if input_file.is_dir():
+            raise ValueError(f"Input path is a directory, not a file: {input_path}")
 
         if output_path is None:
             output_path = str(input_file.with_suffix('.pdf'))
         else:
             output_path = str(Path(output_path))
+
+        output_file = Path(output_path)
+        if output_file.parent and not output_file.parent.exists():
+            output_file.parent.mkdir(parents=True, exist_ok=True)
 
         ext = input_file.suffix.lower()
 
@@ -179,19 +185,31 @@ class FileConverterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("File Converter")
-        self.root.geometry("420x240")
+        self.root.geometry("300x420")
         self.root.resizable(False, False)
+
+        app_dir = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
+        icon_path = app_dir / 'app_icon.ico'
+        if sys.platform == 'win32':
+            if not icon_path.is_file():
+                raise FileNotFoundError(f"Application icon not found: {icon_path}")
+            self.root.iconbitmap(str(icon_path))
+            self.root.iconbitmap(default=str(icon_path))
 
         # Configure modern style
         self.style = ttk.Style()
         self.style.theme_use('clam')
 
-        # Custom colors
-        self.bg_color = '#f0f0f0'
-        self.accent_color = '#0078d4'
-        self.button_bg = '#0078d4'
+        # Compact, modern color scheme
+        self.bg_color = '#f3f4f6'
+        self.card_bg = '#ffffff'
+        self.accent_color = '#2563eb'
+        self.button_bg = '#2563eb'
+        self.button_hover = '#1d4ed8'
         self.button_fg = 'white'
-        self.text_color = '#333333'
+        self.text_color = '#111827'
+        self.text_secondary = '#6b7280'
+        self.border_color = '#dfe3ea'
 
         self.root.configure(bg=self.bg_color)
 
@@ -201,54 +219,74 @@ class FileConverterGUI:
         self.create_widgets()
 
     def create_widgets(self):
-        """Create GUI widgets"""
-        # Main frame with modern styling
-        main_frame = tk.Frame(self.root, bg=self.bg_color, padx=25, pady=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        """Create compact GUI widgets with a clean, polished layout"""
+        header_frame = tk.Frame(self.root, bg=self.bg_color, padx=22, pady=18)
+        header_frame.pack(fill=tk.X)
 
-        # Title
         title_label = tk.Label(
-            main_frame,
+            header_frame,
             text="File Converter",
-            font=('Segoe UI', 16, 'bold'),
+            font=('Segoe UI', 18, 'bold'),
             bg=self.bg_color,
             fg=self.text_color
         )
-        title_label.pack(pady=(0, 15))
+        title_label.pack(anchor=tk.W)
 
-        # Input file section
-        input_frame = tk.Frame(main_frame, bg=self.bg_color)
-        input_frame.pack(fill=tk.X, pady=(0, 12))
+        subtitle_label = tk.Label(
+            header_frame,
+            text="Convert files to PDF format",
+            font=('Segoe UI', 9),
+            bg=self.bg_color,
+            fg=self.text_secondary
+        )
+        subtitle_label.pack(anchor=tk.W, pady=(2, 0))
 
-        # File listbox with scrollbar
-        listbox_frame = tk.Frame(input_frame, bg=self.bg_color)
-        listbox_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        content_frame = tk.Frame(self.root, bg=self.card_bg, padx=18, pady=16)
+        content_frame.pack(fill=tk.BOTH, expand=True, padx=18, pady=(0, 18))
 
-        scrollbar = tk.Scrollbar(listbox_frame, bg=self.bg_color)
+        files_label = tk.Label(
+            content_frame,
+            text="Selected Files",
+            font=('Segoe UI', 10, 'bold'),
+            bg=self.card_bg,
+            fg=self.text_color
+        )
+        files_label.pack(anchor=tk.W, pady=(0, 8))
+
+        listbox_container = tk.Frame(content_frame, bg=self.card_bg)
+        listbox_container.pack(fill=tk.X, pady=(0, 10))
+
+        scrollbar = tk.Scrollbar(listbox_container, bg=self.card_bg)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.file_listbox = tk.Listbox(
-            listbox_frame,
+            listbox_container,
             font=('Segoe UI', 9),
             relief=tk.FLAT,
-            bd=1,
+            bd=0,
             highlightthickness=1,
-            highlightbackground=self.accent_color,
+            highlightbackground=self.border_color,
             highlightcolor=self.accent_color,
             yscrollcommand=scrollbar.set,
-            height=3
+            height=6,
+            width=46,
+            bg='white',
+            selectbackground=self.accent_color,
+            selectforeground='white',
+            activestyle='none'
         )
         self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.file_listbox.yview)
 
         self.file_listbox.insert(0, "No files selected")
-        self.file_listbox.config(fg='gray')
+        self.file_listbox.selection_clear(0, tk.END)
+        self.file_listbox.config(fg=self.text_secondary)
 
-        button_frame = tk.Frame(input_frame, bg=self.bg_color)
-        button_frame.pack(side=tk.RIGHT)
+        button_row = tk.Frame(content_frame, bg=self.card_bg)
+        button_row.pack(fill=tk.X, pady=(0, 10))
 
-        browse_btn = tk.Button(
-            button_frame,
+        add_btn = tk.Button(
+            button_row,
             text="Add Files",
             font=('Segoe UI', 9, 'bold'),
             bg=self.button_bg,
@@ -256,32 +294,33 @@ class FileConverterGUI:
             relief=tk.FLAT,
             cursor='hand2',
             command=self.browse_input_file,
-            padx=12,
-            pady=6,
-            activebackground='#005a9e',
+            padx=18,
+            pady=7,
+            activebackground=self.button_hover,
             activeforeground='white'
         )
-        browse_btn.pack(pady=(0, 5))
+        add_btn.pack(side=tk.LEFT, padx=(0, 8))
 
         clear_btn = tk.Button(
-            button_frame,
+            button_row,
             text="Clear",
             font=('Segoe UI', 9, 'bold'),
-            bg='#666666',
-            fg='white',
+            bg='#eef2ff',
+            fg=self.text_color,
             relief=tk.FLAT,
             cursor='hand2',
             command=self.clear_files,
-            padx=12,
-            pady=6,
-            activebackground='#555555',
-            activeforeground='white'
+            padx=16,
+            pady=7,
+            activebackground='#e0e7ff',
+            activeforeground=self.text_color,
+            highlightthickness=1,
+            highlightbackground=self.border_color
         )
-        clear_btn.pack()
+        clear_btn.pack(side=tk.LEFT)
 
-        # Convert button
         convert_btn = tk.Button(
-            main_frame,
+            content_frame,
             text="Convert to PDF",
             font=('Segoe UI', 10, 'bold'),
             bg=self.button_bg,
@@ -289,37 +328,35 @@ class FileConverterGUI:
             relief=tk.FLAT,
             cursor='hand2',
             command=self.convert_file,
-            padx=25,
+            padx=20,
             pady=10,
-            activebackground='#005a9e',
+            activebackground=self.button_hover,
             activeforeground='white'
         )
-        convert_btn.pack(fill=tk.X, pady=(0, 12))
+        convert_btn.pack(fill=tk.X, pady=(0, 10))
 
-        # Progress bar (hidden initially)
         self.progress = ttk.Progressbar(
-            main_frame,
+            content_frame,
             mode='indeterminate',
             style='Custom.Horizontal.TProgressbar'
         )
 
-        # Status label
         self.status_label = tk.Label(
-            main_frame,
+            content_frame,
             text="Ready - 0 files selected",
-            font=('Segoe UI', 8),
-            bg=self.bg_color,
-            fg='gray'
+            font=('Segoe UI', 9),
+            bg=self.card_bg,
+            fg=self.text_secondary
         )
-        self.status_label.pack(pady=(0, 5))
+        self.status_label.pack()
 
         # Configure progress bar style
         self.style.configure(
             'Custom.Horizontal.TProgressbar',
             background=self.accent_color,
-            troughcolor='#e0e0e0',
+            troughcolor=self.border_color,
             borderwidth=0,
-            thickness=8
+            thickness=6
         )
 
     def browse_input_file(self):
@@ -358,13 +395,15 @@ class FileConverterGUI:
 
         if not self.input_files:
             self.file_listbox.insert(0, "No files selected")
-            self.file_listbox.config(fg='gray')
+            self.file_listbox.selection_clear(0, tk.END)
+            self.file_listbox.config(fg=self.text_secondary)
             self.status_label.config(text="Ready - 0 files selected")
         else:
             self.file_listbox.config(fg=self.text_color)
             for filepath in self.input_files:
                 filename = Path(filepath).name
                 self.file_listbox.insert(tk.END, filename)
+            self.file_listbox.selection_clear(0, tk.END)
             self.status_label.config(text=f"Ready - {len(self.input_files)} file(s) selected")
 
     def convert_file(self):
@@ -377,7 +416,7 @@ class FileConverterGUI:
         self.progress.pack(fill=tk.X, pady=(0, 10))
         self.root.config(cursor='wait')
         self.progress.start(10)
-        self.status_label.config(text="Converting...", foreground="orange")
+        self.status_label.config(text="Converting...", foreground=self.accent_color)
 
         # Run conversion in a separate thread to keep GUI responsive
         thread = threading.Thread(target=self._convert_thread)
@@ -411,10 +450,10 @@ class FileConverterGUI:
         self.root.config(cursor='')
 
         if error_count == 0:
-            self.status_label.config(text=f"Success! {success_count} file(s) converted", foreground="green")
+            self.status_label.config(text=f"Success! {success_count} file(s) converted", foreground="#10b981")
             messagebox.showinfo("Success", f"Successfully converted {success_count} file(s) to PDF!")
         else:
-            self.status_label.config(text=f"Partial success: {success_count} OK, {error_count} failed", foreground="orange")
+            self.status_label.config(text=f"Partial success: {success_count} OK, {error_count} failed", foreground="#f59e0b")
             error_message = f"Converted {success_count} file(s) successfully.\n\nFailed files:\n" + "\n".join(errors)
             messagebox.showwarning("Partial Success", error_message)
 
@@ -423,15 +462,14 @@ class FileConverterGUI:
         self.progress.stop()
         self.progress.pack_forget()
         self.root.config(cursor='')
-        self.status_label.config(text="Conversion failed", foreground="red")
+        self.status_label.config(text="Conversion failed", foreground="#ef4444")
         messagebox.showerror("Error", f"Conversion failed:\n\n{error_message}")
 
 
 def main():
     """Main entry point - GUI or CLI"""
-    # If command-line arguments provided, use CLI mode
-    if len(sys.argv) >= 2:
-        if len(sys.argv) < 2:
+    if len(sys.argv) > 1:
+        if sys.argv[1] in {'-h', '--help'}:
             print("File Converter to PDF")
             print("=" * 40)
             print("\nUsage:")
@@ -445,7 +483,7 @@ def main():
             print("\nExample:")
             print("  python file_converter.py document.docx")
             print("  python file_converter.py image.png output.pdf")
-            sys.exit(1)
+            return
 
         input_file = sys.argv[1]
         output_file = sys.argv[2] if len(sys.argv) > 2 else None
@@ -460,6 +498,17 @@ def main():
             sys.exit(1)
     else:
         # Launch GUI
+        if sys.platform == 'win32':
+            import ctypes
+
+            app_id = 'FileConverter.PDF'
+            set_app_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
+            set_app_id.argtypes = [ctypes.c_wchar_p]
+            set_app_id.restype = ctypes.c_long
+            result = set_app_id(app_id)
+            if result != 0:
+                raise OSError(result, "Could not set the Windows taskbar application ID")
+
         root = tk.Tk()
         app = FileConverterGUI(root)
         root.mainloop()

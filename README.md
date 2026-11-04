@@ -1,80 +1,72 @@
-# File-Converter
-A simple and quick file converter for everyone's need.
+# File Converter
 
-## Features
-Convert various file formats to PDF:
-- **Word documents**: .docx, .doc
-- **Excel spreadsheets**: .xlsx, .xls
-- **PowerPoint presentations**: .pptx, .ppt
-- **Images**: .png, .jpg, .jpeg, .gif, .bmp, .tiff
-- **HTML files**: .html, .htm
+A Windows-friendly desktop and command-line application for converting documents, spreadsheets, presentations, images, and HTML files to PDF.
 
-Available in both **GUI** and **command-line** modes!
+## Supported formats
 
-## Installation
+| Category | Formats |
+|---|---|
+| Word | `.docx`, `.doc` |
+| Excel | `.xlsx`, `.xls` |
+| PowerPoint | `.pptx`, `.ppt` |
+| Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff` |
+| HTML | `.html`, `.htm` |
 
-1. Install Python 3.7 or higher
-2. Install required dependencies:
-```bash
-pip install -r requirements.txt
+## Requirements
+
+- Python 3.7 or later
+- Packages listed in `requirements.txt`
+- Microsoft Office on Windows for Excel and PowerPoint conversion
+- Microsoft Word for Word conversion with `docx2pdf`
+- `wkhtmltopdf` installed and available on `PATH` for HTML conversion
+- Tkinter for the graphical interface (usually included with Python)
+
+Install the Python dependencies:
+
+```powershell
+python -m pip install -r requirements.txt
 ```
 
-**Note**: For HTML to PDF conversion, you also need to install [wkhtmltopdf](https://wkhtmltopdf.org/) and add it to your system PATH.
+## Run from source
 
-## Usage
+Launch the graphical interface:
 
-### GUI Mode (Recommended)
-Simply run the application without arguments to launch the graphical interface:
-```bash
+```powershell
 python file_converter.py
 ```
 
-The GUI features:
-- File browser for easy file selection
-- Auto-generate output filename option
-- Progress indicator during conversion
-- Status messages and error handling
-- Support for all file formats
+The GUI supports selecting multiple files, clearing the selection, and converting files to PDF next to their originals.
 
-### Command Line Mode
-```bash
-# Basic usage (output file will have same name with .pdf extension)
+Convert a file from the command line:
+
+```powershell
 python file_converter.py document.docx
-
-# Specify custom output path
 python file_converter.py image.png output.pdf
-
-# Convert Excel
-python file_converter.py spreadsheet.xlsx
-
-# Convert PowerPoint
-python file_converter.py presentation.pptx
-
-# Convert HTML
-python file_converter.py webpage.html
+python file_converter.py --help
 ```
 
-### As a Library
+## Build a Windows application
+
+The repository includes `app_icon.ico`. The GUI applies this icon to its window and taskbar entry. To also give the executable and its desktop shortcuts the same icon, build a standalone application with PyInstaller:
+
+```powershell
+python -m pip install pyinstaller
+pyinstaller --noconfirm --onefile --windowed --name FileConverter --icon app_icon.ico --add-data "app_icon.ico;." file_converter.py
+```
+
+The executable is created at `dist\FileConverter.exe`. Create a desktop shortcut to that executable, or pin it to the taskbar; Windows will use the embedded application icon. Keep `app_icon.ico` alongside `file_converter.py` when running from source.
+
+## Use as a library
+
 ```python
 from file_converter import FileConverter
 
 converter = FileConverter()
-
-# Convert a file
-converter.convert('document.docx', 'output.pdf')
-
-# Or let it auto-generate the output filename
-converter.convert('image.png')
+pdf_path = converter.convert("document.docx")
 ```
 
-## Requirements
-- Python 3.7+ (tkinter is included with Python)
-- docx2pdf (for Word conversion)
-- Pillow (for image conversion)
-- pdfkit + wkhtmltopdf (for HTML conversion)
-- pywin32 (for Excel/PowerPoint conversion on Windows)
+An output path can be provided as the second argument:
 
-## Notes
-- Excel and PowerPoint conversion require Windows and Microsoft Office installed
-- HTML conversion requires wkhtmltopdf to be installed separately
-- The GUI uses tkinter, which is included with standard Python installations
+```python
+pdf_path = converter.convert("image.png", "output/result.pdf")
+```
