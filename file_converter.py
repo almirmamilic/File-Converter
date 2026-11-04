@@ -208,7 +208,7 @@ class FileConverterGUI:
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
 
         # Input file section
-        ttk.Label(main_frame, text="Input File:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="Select File:").grid(row=1, column=0, sticky=tk.W, pady=5)
 
         self.input_entry = ttk.Entry(main_frame, width=50)
         self.input_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
