@@ -179,8 +179,21 @@ class FileConverterGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("File Converter")
-        self.root.geometry("600x250")
-        self.root.resizable(True, True)
+        self.root.geometry("420x200")
+        self.root.resizable(False, False)
+
+        # Configure modern style
+        self.style = ttk.Style()
+        self.style.theme_use('clam')
+
+        # Custom colors
+        self.bg_color = '#f0f0f0'
+        self.accent_color = '#0078d4'
+        self.button_bg = '#0078d4'
+        self.button_fg = 'white'
+        self.text_color = '#333333'
+
+        self.root.configure(bg=self.bg_color)
 
         self.converter = FileConverter()
         self.input_file = None
@@ -189,55 +202,110 @@ class FileConverterGUI:
 
     def create_widgets(self):
         """Create GUI widgets"""
-        # Main frame
-        main_frame = ttk.Frame(self.root, padding="20")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-
-        # Configure grid weights
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        # Main frame with modern styling
+        main_frame = tk.Frame(self.root, bg=self.bg_color, padx=25, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Title
-        title_label = ttk.Label(
+        title_label = tk.Label(
             main_frame,
             text="File Converter",
-            font=('Helvetica', 16, 'bold')
+            font=('Segoe UI', 16, 'bold'),
+            bg=self.bg_color,
+            fg=self.text_color
         )
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        title_label.pack(pady=(0, 15))
 
         # Input file section
-        ttk.Label(main_frame, text="Select File:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        input_frame = tk.Frame(main_frame, bg=self.bg_color)
+        input_frame.pack(fill=tk.X, pady=(0, 12))
 
-        self.input_entry = ttk.Entry(main_frame, width=50)
-        self.input_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), padx=5, pady=5)
-
-        browse_input_btn = ttk.Button(
-            main_frame,
-            text="Browse...",
-            command=self.browse_input_file
+        self.input_entry = tk.Entry(
+            input_frame,
+            font=('Segoe UI', 10),
+            relief=tk.FLAT,
+            bd=1,
+            highlightthickness=1,
+            highlightbackground=self.accent_color,
+            highlightcolor=self.accent_color
         )
-        browse_input_btn.grid(row=1, column=2, padx=5, pady=5)
+        self.input_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        self.input_entry.insert(0, "Select a file...")
+        self.input_entry.config(fg='gray')
+
+        self.input_entry.bind('<FocusIn>', self._on_entry_click)
+        self.input_entry.bind('<FocusOut>', self._on_entry_leave)
+
+        browse_btn = tk.Button(
+            input_frame,
+            text="Browse",
+            font=('Segoe UI', 9, 'bold'),
+            bg=self.button_bg,
+            fg=self.button_fg,
+            relief=tk.FLAT,
+            cursor='hand2',
+            command=self.browse_input_file,
+            padx=15,
+            pady=6,
+            activebackground='#005a9e',
+            activeforeground='white'
+        )
+        browse_btn.pack(side=tk.RIGHT)
 
         # Convert button
-        convert_btn = ttk.Button(
+        convert_btn = tk.Button(
             main_frame,
             text="Convert to PDF",
-            command=self.convert_file
+            font=('Segoe UI', 10, 'bold'),
+            bg=self.button_bg,
+            fg=self.button_fg,
+            relief=tk.FLAT,
+            cursor='hand2',
+            command=self.convert_file,
+            padx=25,
+            pady=10,
+            activebackground='#005a9e',
+            activeforeground='white'
         )
-        convert_btn.grid(row=2, column=0, columnspan=3, pady=20)
+        convert_btn.pack(fill=tk.X, pady=(0, 12))
 
-        # Progress bar
+        # Progress bar (hidden initially)
         self.progress = ttk.Progressbar(
             main_frame,
             mode='indeterminate',
-            length=400
+            style='Custom.Horizontal.TProgressbar'
         )
-        self.progress.grid(row=3, column=0, columnspan=3, pady=10)
 
         # Status label
-        self.status_label = ttk.Label(main_frame, text="Ready", foreground="gray")
-        self.status_label.grid(row=4, column=0, columnspan=3, pady=5)
+        self.status_label = tk.Label(
+            main_frame,
+            text="Ready",
+            font=('Segoe UI', 8),
+            bg=self.bg_color,
+            fg='gray'
+        )
+        self.status_label.pack(pady=(0, 5))
+
+        # Configure progress bar style
+        self.style.configure(
+            'Custom.Horizontal.TProgressbar',
+            background=self.accent_color,
+            troughcolor='#e0e0e0',
+            borderwidth=0,
+            thickness=8
+        )
+
+    def _on_entry_click(self, event):
+        """Handle entry focus in"""
+        if self.input_entry.get() == "Select a file...":
+            self.input_entry.delete(0, tk.END)
+            self.input_entry.config(fg=self.text_color)
+
+    def _on_entry_leave(self, event):
+        """Handle entry focus out"""
+        if not self.input_entry.get():
+            self.input_entry.insert(0, "Select a file...")
+            self.input_entry.config(fg='gray')
 
     def browse_input_file(self):
         """Browse for input file"""
@@ -260,6 +328,7 @@ class FileConverterGUI:
             self.input_file = filename
             self.input_entry.delete(0, tk.END)
             self.input_entry.insert(0, filename)
+            self.input_entry.config(fg=self.text_color)
 
     def convert_file(self):
         """Convert the selected file"""
@@ -267,7 +336,8 @@ class FileConverterGUI:
             messagebox.showerror("Error", "Please select a file")
             return
 
-        # Disable button during conversion
+        # Show progress bar and disable button during conversion
+        self.progress.pack(fill=tk.X, pady=(0, 10))
         self.root.config(cursor='wait')
         self.progress.start(10)
         self.status_label.config(text="Converting...", foreground="orange")
@@ -290,6 +360,7 @@ class FileConverterGUI:
     def _conversion_success(self, result):
         """Handle successful conversion"""
         self.progress.stop()
+        self.progress.pack_forget()
         self.root.config(cursor='')
         self.status_label.config(text="Conversion successful!", foreground="green")
         messagebox.showinfo("Success", f"File converted successfully!\n\nOutput: {result}")
@@ -297,6 +368,7 @@ class FileConverterGUI:
     def _conversion_error(self, error_message):
         """Handle conversion error"""
         self.progress.stop()
+        self.progress.pack_forget()
         self.root.config(cursor='')
         self.status_label.config(text="Conversion failed", foreground="red")
         messagebox.showerror("Error", f"Conversion failed:\n\n{error_message}")
