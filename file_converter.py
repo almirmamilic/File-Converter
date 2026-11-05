@@ -7,6 +7,8 @@ Converts various file formats to PDF: Word, Excel, PowerPoint, Images, HTML
 import os
 import sys
 import threading
+import gc
+from queue import Empty, SimpleQueue
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from pathlib import Path
@@ -18,12 +20,61 @@ class FileConverter:
 
     def __init__(self):
         self.supported_formats = {
-            'word': ['.docx', '.doc'],
+            'word': ['.docx'],
             'excel': ['.xlsx', '.xls'],
             'powerpoint': ['.pptx', '.ppt'],
             'image': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff'],
             'html': ['.html', '.htm']
         }
+        self._excel_app = None
+        self._pythoncom = None
+        self.progress_callback = None
+
+    @staticmethod
+    def _error_detail(error: Exception) -> str:
+        """Return useful text even when an exception has an empty message."""
+        detail = str(error).strip()
+        return detail if detail else repr(error)
+
+    def start_excel_session(self):
+        """Start an Excel COM session for a batch of conversions."""
+        try:
+            import win32com.client
+            import pythoncom
+        except ImportError:
+            raise ImportError(
+                "pywin32 library not installed. "
+                "Install it with: pip install pywin32"
+            )
+
+        pythoncom.CoInitialize()
+        try:
+            excel = win32com.client.DispatchEx("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+            excel.EnableEvents = False
+            excel.ScreenUpdating = False
+            self._excel_app = excel
+            self._pythoncom = pythoncom
+        except Exception:
+            pythoncom.CoUninitialize()
+            raise
+
+    def close_excel_session(self):
+        """Close the batch Excel COM session and release its COM references."""
+        excel = self._excel_app
+        pythoncom = self._pythoncom
+        self._excel_app = None
+        self._pythoncom = None
+
+        try:
+            if excel is not None:
+                excel.Quit()
+        finally:
+            excel = None
+            gc.collect()
+            if pythoncom is not None:
+                pythoncom.CoUninitialize()
 
     def convert(self, input_path: str, output_path: Optional[str] = None) -> str:
         """
@@ -69,7 +120,7 @@ class FileConverter:
             raise ValueError(f"Unsupported file format: {ext}")
 
     def _convert_word_to_pdf(self, input_path: str, output_path: str) -> str:
-        """Convert Word document to PDF"""
+        """Convert a .docx document to PDF."""
         try:
             from docx2pdf import convert
             convert(input_path, output_path)
@@ -80,7 +131,9 @@ class FileConverter:
                 "Install it with: pip install docx2pdf"
             )
         except Exception as e:
-            raise RuntimeError(f"Failed to convert Word to PDF: {e}")
+            raise RuntimeError(
+                f"Failed to convert Word to PDF: {self._error_detail(e)}"
+            ) from e
 
     def _convert_excel_to_pdf(self, input_path: str, output_path: str) -> str:
         """Convert Excel spreadsheet to PDF"""
@@ -88,18 +141,48 @@ class FileConverter:
             import win32com.client
             import pythoncom
 
-            pythoncom.CoInitialize()
+            owns_session = self._excel_app is None
+            if owns_session:
+                pythoncom.CoInitialize()
+                excel = None
+            else:
+                excel = self._excel_app
+            workbook = None
+            try:
+                if owns_session:
+                    excel = win32com.client.DispatchEx("Excel.Application")
+                    excel.Visible = False
+                    excel.DisplayAlerts = False
+                    excel.EnableEvents = False
+                    excel.ScreenUpdating = False
 
-            excel = win32com.client.Dispatch("Excel.Application")
-            excel.Visible = False
-
-            workbook = excel.Workbooks.Open(os.path.abspath(input_path))
-            workbook.ExportAsFixedFormat(0, os.path.abspath(output_path))
-            workbook.Close(False)
-            excel.Quit()
-
-            pythoncom.CoUninitialize()
-            return output_path
+                workbook = excel.Workbooks.Open(
+                    os.path.abspath(input_path),
+                    UpdateLinks=0,
+                    ReadOnly=True,
+                    IgnoreReadOnlyRecommended=True
+                )
+                workbook.ExportAsFixedFormat(0, os.path.abspath(output_path))
+                if self.progress_callback is not None:
+                    self.progress_callback(
+                        f"PDF created: {Path(output_path).name}; closing workbook..."
+                    )
+                return output_path
+            finally:
+                try:
+                    if workbook is not None:
+                        workbook.Close(False)
+                finally:
+                    workbook = None
+                    gc.collect()
+                    if owns_session:
+                        try:
+                            if excel is not None:
+                                excel.Quit()
+                        finally:
+                            excel = None
+                            gc.collect()
+                            pythoncom.CoUninitialize()
         except ImportError:
             raise ImportError(
                 "pywin32 library not installed. "
@@ -215,8 +298,12 @@ class FileConverterGUI:
 
         self.converter = FileConverter()
         self.input_files = []
+        self._conversion_queue = SimpleQueue()
+        self._conversion_in_progress = False
+        self.converter.progress_callback = self._queue_conversion_status
 
         self.create_widgets()
+        self.root.after(100, self._poll_conversion_queue)
 
     def create_widgets(self):
         """Create compact GUI widgets with a clean, polished layout"""
@@ -362,8 +449,8 @@ class FileConverterGUI:
     def browse_input_file(self):
         """Browse for input files (multiple selection)"""
         filetypes = [
-            ('All supported files', '*.docx;*.doc;*.xlsx;*.xls;*.pptx;*.ppt;*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tiff;*.html;*.htm'),
-            ('Word documents', '*.docx;*.doc'),
+            ('All supported files', '*.docx;*.xlsx;*.xls;*.pptx;*.ppt;*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tiff;*.html;*.htm'),
+            ('Word documents', '*.docx'),
             ('Excel spreadsheets', '*.xlsx;*.xls'),
             ('PowerPoint presentations', '*.pptx;*.ppt'),
             ('Images', '*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tiff'),
@@ -408,10 +495,13 @@ class FileConverterGUI:
 
     def convert_file(self):
         """Convert the selected files"""
+        if self._conversion_in_progress:
+            return
         if not self.input_files:
             messagebox.showerror("Error", "Please select at least one file")
             return
 
+        self._conversion_in_progress = True
         # Show progress bar and disable button during conversion
         self.progress.pack(fill=tk.X, pady=(0, 10))
         self.root.config(cursor='wait')
@@ -422,43 +512,130 @@ class FileConverterGUI:
         thread = threading.Thread(target=self._convert_thread)
         thread.start()
 
+    def _queue_conversion_status(self, status):
+        """Queue a status update from the conversion worker."""
+        self._conversion_queue.put(("status", status))
+
+    def _poll_conversion_queue(self):
+        """Apply worker updates on the Tk main thread."""
+        try:
+            while True:
+                event = self._conversion_queue.get_nowait()
+                event_type = event[0]
+                if event_type == "status":
+                    self.status_label.config(
+                        text=event[1],
+                        foreground=self.accent_color
+                    )
+                elif event_type == "success":
+                    self._conversion_success(*event[1:])
+                elif event_type == "error":
+                    self._conversion_error(event[1])
+        except Empty:
+            pass
+        self.root.after(100, self._poll_conversion_queue)
+
     def _convert_thread(self):
         """Run conversion in a separate thread"""
         success_count = 0
         error_count = 0
         errors = []
+        warnings = []
+        input_files = self.input_files.copy()
+        excel_extensions = set(self.converter.supported_formats['excel'])
+        has_excel_files = any(
+            Path(filepath).suffix.lower() in excel_extensions
+            for filepath in input_files
+        )
+        excel_session_started = False
+        excel_session_error = None
 
         try:
-            for i, filepath in enumerate(self.input_files):
+            if has_excel_files:
                 try:
+                    self.converter.start_excel_session()
+                    excel_session_started = True
+                except Exception as e:
+                    excel_session_error = self.converter._error_detail(e)
+
+            for i, filepath in enumerate(input_files, start=1):
+                self._queue_conversion_status(
+                    f"Converting {i}/{len(input_files)}: {Path(filepath).name}"
+                )
+                try:
+                    if (
+                        Path(filepath).suffix.lower() in excel_extensions
+                        and excel_session_error is not None
+                    ):
+                        raise RuntimeError(excel_session_error)
                     # Auto-generate output path in same directory as input file
-                    result = self.converter.convert(filepath)
+                    self.converter.convert(filepath)
                     success_count += 1
                 except Exception as e:
                     error_count += 1
-                    errors.append(f"{Path(filepath).name}: {str(e)}")
+                    errors.append(
+                        f"{Path(filepath).name}: {self.converter._error_detail(e)}"
+                    )
+
+            if excel_session_started:
+                self._queue_conversion_status("PDF created; finalizing Excel...")
+                try:
+                    self.converter.close_excel_session()
+                except Exception as e:
+                    error_count += 1
+                    errors.append(
+                        f"Excel cleanup: {self.converter._error_detail(e)}"
+                    )
 
             # Update GUI from main thread
-            self.root.after(0, self._conversion_success, success_count, error_count, errors)
+            self._conversion_queue.put(
+                ("success", success_count, error_count, errors, warnings)
+            )
         except Exception as e:
-            self.root.after(0, self._conversion_error, str(e))
+            if excel_session_started:
+                try:
+                    self.converter.close_excel_session()
+                except Exception as cleanup_error:
+                    e = RuntimeError(
+                        f"{self.converter._error_detail(e)}; Excel cleanup also failed: "
+                        f"{self.converter._error_detail(cleanup_error)}"
+                    )
+            self._conversion_queue.put(
+                ("error", self.converter._error_detail(e))
+            )
 
-    def _conversion_success(self, success_count, error_count, errors):
+    def _conversion_success(self, success_count, error_count, errors, warnings=None):
         """Handle successful conversion"""
+        warnings = warnings or []
+        self._conversion_in_progress = False
         self.progress.stop()
         self.progress.pack_forget()
         self.root.config(cursor='')
 
-        if error_count == 0:
+        if error_count == 0 and not warnings:
             self.status_label.config(text=f"Success! {success_count} file(s) converted", foreground="#10b981")
             messagebox.showinfo("Success", f"Successfully converted {success_count} file(s) to PDF!")
+        elif error_count == 0:
+            self.status_label.config(
+                text=f"Converted {success_count} file(s) with a cleanup warning",
+                foreground="#f59e0b"
+            )
+            messagebox.showwarning(
+                "Conversion succeeded with warning",
+                f"Successfully converted {success_count} file(s) to PDF.\n\n"
+                "Word did not shut down cleanly. The PDF is ready, but Word may "
+                "remain running:\n" + "\n".join(warnings)
+            )
         else:
             self.status_label.config(text=f"Partial success: {success_count} OK, {error_count} failed", foreground="#f59e0b")
             error_message = f"Converted {success_count} file(s) successfully.\n\nFailed files:\n" + "\n".join(errors)
+            if warnings:
+                error_message += "\n\nWarnings:\n" + "\n".join(warnings)
             messagebox.showwarning("Partial Success", error_message)
 
     def _conversion_error(self, error_message):
         """Handle conversion error"""
+        self._conversion_in_progress = False
         self.progress.stop()
         self.progress.pack_forget()
         self.root.config(cursor='')
@@ -475,7 +652,7 @@ def main():
             print("\nUsage:")
             print("  python file_converter.py <input_file> [output_file]")
             print("\nSupported formats:")
-            print("  - Word: .docx, .doc")
+            print("  - Word: .docx")
             print("  - Excel: .xlsx, .xls")
             print("  - PowerPoint: .pptx, .ppt")
             print("  - Images: .png, .jpg, .jpeg, .gif, .bmp, .tiff")

@@ -6,7 +6,7 @@ A Windows-friendly desktop and command-line application for converting documents
 
 | Category | Formats |
 |---|---|
-| Word | `.docx`, `.doc` |
+| Word | `.docx` |
 | Excel | `.xlsx`, `.xls` |
 | PowerPoint | `.pptx`, `.ppt` |
 | Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.tiff` |
@@ -17,7 +17,7 @@ A Windows-friendly desktop and command-line application for converting documents
 - Python 3.7 or later
 - Packages listed in `requirements.txt`
 - Microsoft Office on Windows for Excel and PowerPoint conversion
-- Microsoft Word for Word conversion with `docx2pdf`
+- Microsoft Word for `.docx` conversion with `docx2pdf`
 - `wkhtmltopdf` installed and available on `PATH` for HTML conversion
 - Tkinter for the graphical interface (usually included with Python)
 
@@ -35,7 +35,7 @@ Launch the graphical interface:
 python file_converter.py
 ```
 
-The GUI supports selecting multiple files, clearing the selection, and converting files to PDF next to their originals.
+The GUI supports selecting multiple files, clearing the selection, and converting files to PDF next to their originals. Only modern Word `.docx` files are supported; legacy `.doc` files are not supported. Excel files in the same batch share an Excel session to avoid repeated application startup; large or complex workbooks can still take longer while Excel calculates and lays out sheets for PDF output.
 
 Convert a file from the command line:
 
