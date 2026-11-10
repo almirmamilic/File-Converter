@@ -675,17 +675,6 @@ def main():
             sys.exit(1)
     else:
         # Launch GUI
-        if sys.platform == 'win32':
-            import ctypes
-
-            app_id = 'FileConverter.PDF'
-            set_app_id = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID
-            set_app_id.argtypes = [ctypes.c_wchar_p]
-            set_app_id.restype = ctypes.c_long
-            result = set_app_id(app_id)
-            if result != 0:
-                raise OSError(result, "Could not set the Windows taskbar application ID")
-
         root = tk.Tk()
         app = FileConverterGUI(root)
         root.mainloop()
